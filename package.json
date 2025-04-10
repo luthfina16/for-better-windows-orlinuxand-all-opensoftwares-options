@@ -75,9 +75,9 @@
     "progress": "2.0.3",
     "proxy-from-env": "1.1.0",
     "rimraf": "3.0.2",
-    "tar-fs": "2.1.1",
+    "tar-fs": "2.1.2",
     "unbzip2-stream": "1.4.3",
-    "ws": "8.5.0"
+    "ws": "8.17.1"
   },
   "devDependencies": {
     "@commitlint/cli": "16.2.3",
