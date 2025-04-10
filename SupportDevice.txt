@@ -1,0 +1,54 @@
+
+The BindTool support product:
+
+ 1.ScrollToo T955 Laser 	(0x0128)
+ 2.ScrollToo800			(0x00A3)
+ 3.Navigator820			(0x00A0)
+ 4.LuxeMate 800			(0x00A1)
+ 5.SlimStat i820		(0x00AE)
+ 6.SlimStat 820V		(0x00AF)
+ 7.Navigator 900X		(0x00B1)
+ 8.LuxeMate T830		(0x00A6)
+ 9.LuxeMate 820			(0x00B3)
+10.Micro Traveler  900LS	(0x00B4)
+11.Media Pointer 100		(0X00B9)
+12.Media Pointer T905		(0X00BA)
+13.Micro Traveler  900S		(0x00C5)
+14.Navagitor 905		(0X00C8)
+15.SlimStar 801			(0X00C9)
+16.LM R820			(0X00D4)
+17.NetScroll 801		(0X00D1)
+18.ScrollToo 901		(0X00D8)
+19.Navigator T835		(0X0117)
+20.Navigator T835 V2		(0X00D7)
+21.Mini Navigator 900		(0X00DA)
+22.
+23.Ergo 9000			(0X00E0)
+24.Pen Mouse			(0X00CA)
+25.Media Pointer 1000		(0X00E2)
+26.Traveler 6000		(0X00E3)
+27.2.4GHz Mouse			(0X00E4) < include: Traveler 6000X >
+28.Traveler 9000		(0X00E5)
+29.Ergo 7000			(0X00E6)
+30.Traveler 8000		(0X00E7)
+31.Traveler 7000		(0X00E8)
+32.Traveler 6010		(0X00E9)
+33.Traveler 900			(0x00A2)
+34.Wireless 2.4GHz Mouse	(0x00EA) < include: ScrollToo 6010 >
+35.LuxeMate 8000		(0x00EB)
+36.DX-7100			(0x00F7)
+37.DX-6000			(0x00F8)
+38.ErgoMedia 8000		(0x00FA)
+39.Ring Mouse                   (0x00CB) <use "Nordic" ,only Lock>
+40.Ring Presenter		(0x00F1) <use "Nordic" ,only Lock>
+41.DX-ECO			(0x00F2) <use "Nordic" ,only Lock>
+42.DX-8100       		(0x013D)
+43.Traveler 9010LS       	(0x013B)
+43.NX-ECO               	(0x0142)
+
+Agama Product:
+
+ 1.M-900LS			(0X00BF)
+ 2.KM-800			(0X00C7)
+ 3.KM-820			(0X00C0)
+ 4.M-900			(0X00D3)
