@@ -1,0 +1,6 @@
+-disableHyperthreading
+-fullscreen
+-hdr
+-ignoreDifferentVideoCard
+-noInGameDOF
+-noquattransform

@@ -1,0 +1,8 @@
+// GTA V ASI LOADER (build May  2 2015)
+//     (C) Alexander Blade 2015
+LIB: "C:\WINDOWS\system32\dinput8.dll" => 00007FFD54790000
+API: "DirectInput8Create" => 00007FFD547922A0
+API: "DllCanUnloadNow" => 00007FFD547A5EB0
+API: "DllGetClassObject" => 00007FFD547A5FC0
+API: "DllRegisterServer" => 00007FFD547B57B0
+API: "DllUnregisterServer" => 00007FFD547B5A90
