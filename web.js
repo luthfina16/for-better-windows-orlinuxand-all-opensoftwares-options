@@ -13,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-declare const _default: import("./api-docs-entry.js").Puppeteer;
-export default _default;
-//# sourceMappingURL=web.d.ts.map
+import { initializePuppeteerWeb } from './initialize-web.js';
+import { isNode } from './environment.js';
+if (isNode) {
+    throw new Error('Trying to run Puppeteer-Web in a Node environment');
+}
+export default initializePuppeteerWeb('puppeteer');
+//# sourceMappingURL=web.js.map

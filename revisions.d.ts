@@ -13,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-declare const _default: import("./api-docs-entry.js").Puppeteer;
-export default _default;
-//# sourceMappingURL=web.d.ts.map
+declare type Revisions = Readonly<{
+    readonly chromium: string;
+    readonly firefox: string;
+}>;
+export declare const PUPPETEER_REVISIONS: Revisions;
+export {};
+//# sourceMappingURL=revisions.d.ts.map

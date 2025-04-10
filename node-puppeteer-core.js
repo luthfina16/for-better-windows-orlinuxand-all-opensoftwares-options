@@ -1,5 +1,5 @@
 /**
- * Copyright 2020 Google Inc. All rights reserved.
+ * Copyright 2017 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-declare const _default: import("./api-docs-entry.js").Puppeteer;
-export default _default;
-//# sourceMappingURL=web.d.ts.map
+import { initializePuppeteerNode } from './initialize-node.js';
+import { isNode } from './environment.js';
+if (!isNode) {
+    throw new Error('Cannot run puppeteer-core outside of Node.js');
+}
+const puppeteer = initializePuppeteerNode('puppeteer-core');
+export default puppeteer;
+//# sourceMappingURL=node-puppeteer-core.js.map

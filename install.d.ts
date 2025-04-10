@@ -13,6 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-declare const _default: import("./api-docs-entry.js").Puppeteer;
-export default _default;
-//# sourceMappingURL=web.d.ts.map
+export declare function downloadBrowser(): Promise<void>;
+export declare function logPolitely(toBeLogged: unknown): void;
+//# sourceMappingURL=install.d.ts.map

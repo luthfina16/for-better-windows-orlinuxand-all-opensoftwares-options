@@ -13,6 +13,5 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-declare const _default: import("./api-docs-entry.js").Puppeteer;
-export default _default;
-//# sourceMappingURL=web.d.ts.map
+export declare const isNode: boolean;
+//# sourceMappingURL=environment.d.ts.map
