@@ -1,3 +1,4 @@
+"use strict";
 /**
  * Copyright 2020 Google Inc. All rights reserved.
  *
@@ -13,11 +14,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.assertNever = exports.assert = void 0;
 /**
  * Asserts that the given value is truthy.
  * @param value
  * @param message - the error message to throw if the value is not truthy.
  */
-export declare const assert: (value: unknown, message?: string) => void;
-export declare const assertNever: (value: never, message?: string) => void;
-//# sourceMappingURL=assert.d.ts.map
+const assert = (value, message) => {
+    if (!value)
+        throw new Error(message);
+};
+exports.assert = assert;
+const assertNever = (value, message) => {
+    if (value)
+        throw new Error(message);
+};
+exports.assertNever = assertNever;
+//# sourceMappingURL=assert.js.map

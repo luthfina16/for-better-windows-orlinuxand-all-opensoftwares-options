@@ -13,11 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/**
- * Asserts that the given value is truthy.
- * @param value
- * @param message - the error message to throw if the value is not truthy.
- */
-export declare const assert: (value: unknown, message?: string) => void;
-export declare const assertNever: (value: never, message?: string) => void;
-//# sourceMappingURL=assert.d.ts.map
+import { ConnectionTransport } from './ConnectionTransport.js';
+export declare class BrowserWebSocketTransport implements ConnectionTransport {
+    static create(url: string): Promise<BrowserWebSocketTransport>;
+    private _ws;
+    onmessage?: (message: string) => void;
+    onclose?: () => void;
+    constructor(ws: WebSocket);
+    send(message: string): void;
+    close(): void;
+}
+//# sourceMappingURL=BrowserWebSocketTransport.d.ts.map

@@ -13,11 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { InternalQueryHandler } from './QueryHandler.js';
 /**
- * Asserts that the given value is truthy.
- * @param value
- * @param message - the error message to throw if the value is not truthy.
+ * @internal
  */
-export declare const assert: (value: unknown, message?: string) => void;
-export declare const assertNever: (value: never, message?: string) => void;
-//# sourceMappingURL=assert.d.ts.map
+export declare const ariaHandler: InternalQueryHandler;
+//# sourceMappingURL=AriaQueryHandler.d.ts.map
