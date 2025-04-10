@@ -1,65 +1,115 @@
-# v3.0
 
-- Add `--preserve-root` option to executable (default true)
-- Drop support for Node.js below version 6
+2.0.0 / 2017-04-04
+==================
 
-# v2.7
+  * Fix: check before using stream.clearLine to prevent crash in Docker
+  * Fix: fixed output multiline on windows cmd
+  * Fix: Bug with array length when window is too small
+  * Fix: Don't clear whole line every time; instead, clear everything after end of line
+  * Fix: Use `this.stream` instead of `console.log` when terminating a progress bar to ensure that, if a writable stream is provided, it uses that rather than process.stdout
+  * Fix: Bug causing potentially stale tokens on render
+  * Feature: configurable cursor
+  * Feature: feature to interrupt the bar and display a message
+  * Feature: Add rate reporting to progress bar
+  * Improvement: Add head option to specify head character
+  * Improvement: Rename tickTokens to tokens
+  * Improvement: Change default throttle time to 16ms
+  * Improvement: Rename renderDelay to renderThrottle
+  * Improvement: Add delay between render updates
+  * Docs: Add example and documentation for custom token usage
+  * Docs: Add head option to readme
+  * Docs: Updated README example for public use
+  * Docs: Add renderThrottle option to code documentation
 
-- Make `glob` an optional dependency
+1.1.7 / 2014-06-30
+==================
 
-# 2.6
+ * fixed a bug that occurs when a progress bar attempts to draw itself
+   on a console with very few columns
 
-- Retry on EBUSY on non-windows platforms as well
-- Make `rimraf.sync` 10000% more reliable on Windows
+1.1.6 / 2014-06-16
+==================
 
-# 2.5
+ * now prevents progress bar from exceeding TTY width by limiting its width to
+   the with of the TTY
 
-- Handle Windows EPERM when lstat-ing read-only dirs
-- Add glob option to pass options to glob
+1.1.5 / 2014-03-25
+==================
 
-# 2.4
+ * updated documentation and various other repo maintenance
+ * updated makefile to run examples with `make`
+ * removed dependency on readline module
 
-- Add EPERM to delay/retry loop
-- Add `disableGlob` option
+1.1.4 / 2014-03-14
+==================
 
-# 2.3
+ * now supports streams, for example output progress bar to stderr, while piping
+   stdout
+ * increases performance and flicker by remembering the last drawn progress bar
 
-- Make maxBusyTries and emfileWait configurable
-- Handle weird SunOS unlink-dir issue
-- Glob the CLI arg for better Windows support
+1.1.3 / 2013-12-31
+==================
 
-# 2.2
+ * fixes a bug where bar would bug when initializing
+ * allows to pass updated tokens when ticking or updating the bar
+ * fixes a bug where the bar would throw if skipping to far
 
-- Handle ENOENT properly on Windows
-- Allow overriding fs methods
-- Treat EPERM as indicative of non-empty dir
-- Remove optional graceful-fs dep
-- Consistently return null error instead of undefined on success
-- win32: Treat ENOTEMPTY the same as EBUSY
-- Add `rimraf` binary
+1.1.2 / 2013-10-17
+==================
 
-# 2.1
+ * lets you pass an `fmt` and a `total` instead of an options object
 
-- Fix SunOS error code for a non-empty directory
-- Try rmdir before readdir
-- Treat EISDIR like EPERM
-- Remove chmod
-- Remove lstat polyfill, node 0.7 is not supported
+1.1.0 / 2013-09-18
+==================
 
-# 2.0
+ * eta and elapsed tokens default to 0.0 instead of ?.?
+ * better JSDocs
+ * added back and forth example
+ * added method to update the progress bar to a specific percentage
+ * added an option to hide the bar on completion
 
-- Fix myGid call to check process.getgid
-- Simplify the EBUSY backoff logic.
-- Use fs.lstat in node >= 0.7.9
-- Remove gently option
-- remove fiber implementation
-- Delete files that are marked read-only
+1.0.1 / 2013-08-07
+==================
 
-# 1.0
+ * on os x readline now works, reverting the terminal hack
 
-- Allow ENOENT in sync method
-- Throw when no callback is provided
-- Make opts.gently an absolute path
-- use 'stat' if 'lstat' is not available
-- Consistent error naming, and rethrow non-ENOENT stat errors
-- add fiber implementation
+1.0.0 / 2013-06-18
+==================
+
+  * remove .version
+  * merge pull request #15 from davglass/readline-osx
+  * on OSX revert back to terminal hack to avoid a readline bug
+
+0.1.0 / 2012-09-19
+==================
+
+  * fixed logic bug that caused bar to jump one extra space at the end [davglass]
+  * working with readline impl, even on Windows [davglass]
+  * using readline instead of the \r hack [davglass]
+
+0.0.5 / 2012-08-07
+==================
+
+  * add ability to tick by zero chunks - tick(0)
+  * fix ETA. Closes #4 [lwille]
+
+0.0.4 / 2011-11-14
+==================
+
+  * allow more recent versions of node
+
+0.0.3 / 2011-04-20
+==================
+
+  * changed; erase the line when complete
+
+0.0.2 / 2011-04-20
+==================
+
+  * added custom tokens support
+  * fixed; clear line before writing
+
+0.0.1 / 2010-01-03
+==================
+
+  * initial release

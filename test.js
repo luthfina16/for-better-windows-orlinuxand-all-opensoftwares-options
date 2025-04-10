@@ -1,350 +1,483 @@
-var fdSlicer = require('../');
-var fs = require('fs');
-var crypto = require('crypto');
-var path = require('path');
-var streamEqual = require('stream-equal');
+/* eslint max-statements:0 */
+'use strict';
+
 var assert = require('assert');
-var Pend = require('pend');
-var StreamSink = require('streamsink');
+var parseUrl = require('url').parse;
 
-var describe = global.describe;
-var it = global.it;
-var before = global.before;
-var beforeEach = global.beforeEach;
-var after = global.after;
+var getProxyForUrl = require('./').getProxyForUrl;
 
-var testBlobFile = path.join(__dirname, "test-blob.bin");
-var testBlobFileSize = 20 * 1024 * 1024;
-var testOutBlobFile = path.join(__dirname, "test-blob-out.bin");
+// Runs the callback with process.env temporarily set to env.
+function runWithEnv(env, callback) {
+  var originalEnv = process.env;
+  process.env = env;
+  try {
+    callback();
+  } finally {
+    process.env = originalEnv;
+  }
+}
 
-describe("FdSlicer", function() {
-  before(function(done) {
-    var out = fs.createWriteStream(testBlobFile);
-    for (var i = 0; i < testBlobFileSize / 1024; i += 1) {
-      out.write(crypto.pseudoRandomBytes(1024));
+// Defines a test case that checks whether getProxyForUrl(input) === expected.
+function testProxyUrl(env, expected, input) {
+  assert(typeof env === 'object' && env !== null);
+  // Copy object to make sure that the in param does not get modified between
+  // the call of this function and the use of it below.
+  env = JSON.parse(JSON.stringify(env));
+
+  var title = 'getProxyForUrl(' + JSON.stringify(input) + ')' +
+     ' === ' + JSON.stringify(expected);
+
+  // Save call stack for later use.
+  var stack = {};
+  Error.captureStackTrace(stack, testProxyUrl);
+  // Only use the last stack frame because that shows where this function is
+  // called, and that is sufficient for our purpose. No need to flood the logs
+  // with an uninteresting stack trace.
+  stack = stack.stack.split('\n', 2)[1];
+
+  it(title, function() {
+    var actual;
+    runWithEnv(env, function() {
+      actual = getProxyForUrl(input);
+    });
+    if (expected === actual) {
+      return;  // Good!
     }
-    out.end();
-    out.on('close', done);
-  });
-  beforeEach(function() {
     try {
-      fs.unlinkSync(testOutBlobFile);
-    } catch (err) {
+      assert.strictEqual(expected, actual); // Create a formatted error message.
+      // Should not happen because previously we determined expected !== actual.
+      throw new Error('assert.strictEqual passed. This is impossible!');
+    } catch (e) {
+      // Use the original stack trace, so we can see a helpful line number.
+      e.stack = e.message + stack;
+      throw e;
     }
   });
-  after(function() {
-    try {
-      fs.unlinkSync(testBlobFile);
-      fs.unlinkSync(testOutBlobFile);
-    } catch (err) {
-    }
-  });
-  it("reads a 20MB file (autoClose on)", function(done) {
-    fs.open(testBlobFile, 'r', function(err, fd) {
-      if (err) return done(err);
-      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
-      var actualStream = slicer.createReadStream();
-      var expectedStream = fs.createReadStream(testBlobFile);
+}
 
-      var pend = new Pend();
-      pend.go(function(cb) {
-        slicer.on('close', cb);
-      });
-      pend.go(function(cb) {
-        streamEqual(expectedStream, actualStream, function(err, equal) {
-          if (err) return done(err);
-          assert.ok(equal);
-          cb();
-        });
-      });
-      pend.wait(done);
-    });
-  });
-  it("reads 4 chunks simultaneously", function(done) {
-    fs.open(testBlobFile, 'r', function(err, fd) {
-      if (err) return done(err);
-      var slicer = fdSlicer.createFromFd(fd);
-      var actualPart1 = slicer.createReadStream({start: testBlobFileSize * 0/4, end: testBlobFileSize * 1/4});
-      var actualPart2 = slicer.createReadStream({start: testBlobFileSize * 1/4, end: testBlobFileSize * 2/4});
-      var actualPart3 = slicer.createReadStream({start: testBlobFileSize * 2/4, end: testBlobFileSize * 3/4});
-      var actualPart4 = slicer.createReadStream({start: testBlobFileSize * 3/4, end: testBlobFileSize * 4/4});
-      var expectedPart1 = slicer.createReadStream({start: testBlobFileSize * 0/4, end: testBlobFileSize * 1/4});
-      var expectedPart2 = slicer.createReadStream({start: testBlobFileSize * 1/4, end: testBlobFileSize * 2/4});
-      var expectedPart3 = slicer.createReadStream({start: testBlobFileSize * 2/4, end: testBlobFileSize * 3/4});
-      var expectedPart4 = slicer.createReadStream({start: testBlobFileSize * 3/4, end: testBlobFileSize * 4/4});
-      var pend = new Pend();
-      pend.go(function(cb) {
-        streamEqual(expectedPart1, actualPart1, function(err, equal) {
-          assert.ok(equal);
-          cb(err);
-        });
-      });
-      pend.go(function(cb) {
-        streamEqual(expectedPart2, actualPart2, function(err, equal) {
-          assert.ok(equal);
-          cb(err);
-        });
-      });
-      pend.go(function(cb) {
-        streamEqual(expectedPart3, actualPart3, function(err, equal) {
-          assert.ok(equal);
-          cb(err);
-        });
-      });
-      pend.go(function(cb) {
-        streamEqual(expectedPart4, actualPart4, function(err, equal) {
-          assert.ok(equal);
-          cb(err);
-        });
-      });
-      pend.wait(function(err) {
-        if (err) return done(err);
-        fs.close(fd, done);
-      });
-    });
+describe('getProxyForUrl', function() {
+  describe('No proxy variables', function() {
+    var env = {};
+    testProxyUrl(env, '', 'http://example.com');
+    testProxyUrl(env, '', 'https://example.com');
+    testProxyUrl(env, '', 'ftp://example.com');
   });
 
-  it("writes a 20MB file (autoClose on)", function(done) {
-    fs.open(testOutBlobFile, 'w', function(err, fd) {
-      if (err) return done(err);
-      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
-      var actualStream = slicer.createWriteStream();
-      var inStream = fs.createReadStream(testBlobFile);
-
-      slicer.on('close', function() {
-        var expected = fs.createReadStream(testBlobFile);
-        var actual = fs.createReadStream(testOutBlobFile);
-
-        streamEqual(expected, actual, function(err, equal) {
-          if (err) return done(err);
-          assert.ok(equal);
-          done();
-        });
-      });
-      inStream.pipe(actualStream);
-    });
+  describe('Invalid URLs', function() {
+    var env = {};
+    env.ALL_PROXY = 'http://unexpected.proxy';
+    testProxyUrl(env, '', 'bogus');
+    testProxyUrl(env, '', '//example.com');
+    testProxyUrl(env, '', '://example.com');
+    testProxyUrl(env, '', '://');
+    testProxyUrl(env, '', '/path');
+    testProxyUrl(env, '', '');
+    testProxyUrl(env, '', 'http:');
+    testProxyUrl(env, '', 'http:/');
+    testProxyUrl(env, '', 'http://');
+    testProxyUrl(env, '', 'prototype://');
+    testProxyUrl(env, '', 'hasOwnProperty://');
+    testProxyUrl(env, '', '__proto__://');
+    testProxyUrl(env, '', undefined);
+    testProxyUrl(env, '', null);
+    testProxyUrl(env, '', {});
+    testProxyUrl(env, '', {host: 'x', protocol: 1});
+    testProxyUrl(env, '', {host: 1, protocol: 'x'});
   });
 
-  it("writes 4 chunks simultaneously", function(done) {
-    fs.open(testOutBlobFile, 'w', function(err, fd) {
-      if (err) return done(err);
-      var slicer = fdSlicer.createFromFd(fd);
-      var actualPart1 = slicer.createWriteStream({start: testBlobFileSize * 0/4});
-      var actualPart2 = slicer.createWriteStream({start: testBlobFileSize * 1/4});
-      var actualPart3 = slicer.createWriteStream({start: testBlobFileSize * 2/4});
-      var actualPart4 = slicer.createWriteStream({start: testBlobFileSize * 3/4});
-      var in1 = fs.createReadStream(testBlobFile, {start: testBlobFileSize * 0/4, end: testBlobFileSize * 1/4});
-      var in2 = fs.createReadStream(testBlobFile, {start: testBlobFileSize * 1/4, end: testBlobFileSize * 2/4});
-      var in3 = fs.createReadStream(testBlobFile, {start: testBlobFileSize * 2/4, end: testBlobFileSize * 3/4});
-      var in4 = fs.createReadStream(testBlobFile, {start: testBlobFileSize * 3/4, end: testBlobFileSize * 4/4});
-      var pend = new Pend();
-      pend.go(function(cb) {
-        actualPart1.on('finish', cb);
-      });
-      pend.go(function(cb) {
-        actualPart2.on('finish', cb);
-      });
-      pend.go(function(cb) {
-        actualPart3.on('finish', cb);
-      });
-      pend.go(function(cb) {
-        actualPart4.on('finish', cb);
-      });
-      in1.pipe(actualPart1);
-      in2.pipe(actualPart2);
-      in3.pipe(actualPart3);
-      in4.pipe(actualPart4);
-      pend.wait(function() {
-        fs.close(fd, function(err) {
-          if (err) return done(err);
-          var expected = fs.createReadStream(testBlobFile);
-          var actual = fs.createReadStream(testOutBlobFile);
-          streamEqual(expected, actual, function(err, equal) {
-            if (err) return done(err);
-            assert.ok(equal);
-            done();
-          });
-        });
-      });
-    });
+  describe('http_proxy and HTTP_PROXY', function() {
+    var env = {};
+    env.HTTP_PROXY = 'http://http-proxy';
+
+    testProxyUrl(env, '', 'https://example');
+    testProxyUrl(env, 'http://http-proxy', 'http://example');
+    testProxyUrl(env, 'http://http-proxy', parseUrl('http://example'));
+
+    // eslint-disable-next-line camelcase
+    env.http_proxy = 'http://priority';
+    testProxyUrl(env, 'http://priority', 'http://example');
   });
 
-  it("throws on invalid ref", function(done) {
-    fs.open(testOutBlobFile, 'w', function(err, fd) {
-      if (err) return done(err);
-      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
-      assert.throws(function() {
-        slicer.unref();
-      }, /invalid unref/);
-      fs.close(fd, done);
-    });
+  describe('http_proxy with non-sensical value', function() {
+    var env = {};
+    // Crazy values should be passed as-is. It is the responsibility of the
+    // one who launches the application that the value makes sense.
+    // TODO: Should we be stricter and perform validation?
+    env.HTTP_PROXY = 'Crazy \n!() { ::// }';
+    testProxyUrl(env, 'Crazy \n!() { ::// }', 'http://wow');
+
+    // The implementation assumes that the HTTP_PROXY environment variable is
+    // somewhat reasonable, and if the scheme is missing, it is added.
+    // Garbage in, garbage out some would say...
+    env.HTTP_PROXY = 'crazy without colon slash slash';
+    testProxyUrl(env, 'http://crazy without colon slash slash', 'http://wow');
   });
 
-  it("write stream emits error when max size exceeded", function(done) {
-    fs.open(testOutBlobFile, 'w', function(err, fd) {
-      if (err) return done(err);
-      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
-      var ws = slicer.createWriteStream({start: 0, end: 1000});
-      ws.on('error', function(err) {
-        assert.strictEqual(err.code, 'ETOOBIG');
-        slicer.on('close', done);
-      });
-      ws.end(new Buffer(1001));
-    });
+  describe('https_proxy and HTTPS_PROXY', function() {
+    var env = {};
+    // Assert that there is no fall back to http_proxy
+    env.HTTP_PROXY = 'http://unexpected.proxy';
+    testProxyUrl(env, '', 'https://example');
+
+    env.HTTPS_PROXY = 'http://https-proxy';
+    testProxyUrl(env, 'http://https-proxy', 'https://example');
+
+    // eslint-disable-next-line camelcase
+    env.https_proxy = 'http://priority';
+    testProxyUrl(env, 'http://priority', 'https://example');
   });
 
-  it("write stream does not emit error when max size not exceeded", function(done) {
-    fs.open(testOutBlobFile, 'w', function(err, fd) {
-      if (err) return done(err);
-      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
-      var ws = slicer.createWriteStream({end: 1000});
-      slicer.on('close', done);
-      ws.end(new Buffer(1000));
-    });
+  describe('ftp_proxy', function() {
+    var env = {};
+    // Something else than http_proxy / https, as a sanity check.
+    env.FTP_PROXY = 'http://ftp-proxy';
+
+    testProxyUrl(env, 'http://ftp-proxy', 'ftp://example');
+    testProxyUrl(env, '', 'ftps://example');
   });
 
-  it("write stream start and end work together", function(done) {
-    fs.open(testOutBlobFile, 'w', function(err, fd) {
-      if (err) return done(err);
-      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
-      var ws = slicer.createWriteStream({start: 1, end: 1000});
-      ws.on('error', function(err) {
-        assert.strictEqual(err.code, 'ETOOBIG');
-        slicer.on('close', done);
-      });
-      ws.end(new Buffer(1000));
-    });
+  describe('all_proxy', function() {
+    var env = {};
+    env.ALL_PROXY = 'http://catch-all';
+    testProxyUrl(env, 'http://catch-all', 'https://example');
+
+    // eslint-disable-next-line camelcase
+    env.all_proxy = 'http://priority';
+    testProxyUrl(env, 'http://priority', 'https://example');
   });
 
-  it("write stream emits progress events", function(done) {
-    fs.open(testOutBlobFile, 'w', function(err, fd) {
-      if (err) return done(err);
-      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
-      var ws = slicer.createWriteStream();
-      var progressEventCount = 0;
-      var prevBytesWritten = 0;
-      ws.on('progress', function() {
-        progressEventCount += 1;
-        assert.ok(ws.bytesWritten > prevBytesWritten);
-        prevBytesWritten = ws.bytesWritten;
-      });
-      slicer.on('close', function() {
-        assert.ok(progressEventCount > 5);
-        done();
-      });
-      for (var i = 0; i < 10; i += 1) {
-        ws.write(new Buffer(16 * 1024 * 2));
-      }
-      ws.end();
-    });
+  describe('all_proxy without scheme', function() {
+    var env = {};
+    env.ALL_PROXY = 'noscheme';
+    testProxyUrl(env, 'http://noscheme', 'http://example');
+    testProxyUrl(env, 'https://noscheme', 'https://example');
+
+    // The module does not impose restrictions on the scheme.
+    testProxyUrl(env, 'bogus-scheme://noscheme', 'bogus-scheme://example');
+
+    // But the URL should still be valid.
+    testProxyUrl(env, '', 'bogus');
   });
 
-  it("write stream unrefs when destroyed", function(done) {
-    fs.open(testOutBlobFile, 'w', function(err, fd) {
-      if (err) return done(err);
-      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
-      var ws = slicer.createWriteStream();
-      slicer.on('close', done);
-      ws.write(new Buffer(1000));
-      ws.destroy();
-    });
+  describe('no_proxy empty', function() {
+    var env = {};
+    env.HTTPS_PROXY = 'http://proxy';
+
+    // NO_PROXY set but empty.
+    env.NO_PROXY = '';
+    testProxyUrl(env, 'http://proxy', 'https://example');
+
+    // No entries in NO_PROXY (comma).
+    env.NO_PROXY = ',';
+    testProxyUrl(env, 'http://proxy', 'https://example');
+
+    // No entries in NO_PROXY (whitespace).
+    env.NO_PROXY = ' ';
+    testProxyUrl(env, 'http://proxy', 'https://example');
+
+    // No entries in NO_PROXY (multiple whitespace / commas).
+    env.NO_PROXY = ',\t,,,\n,  ,\r';
+    testProxyUrl(env, 'http://proxy', 'https://example');
   });
 
-  it("read stream unrefs when destroyed", function(done) {
-    fs.open(testBlobFile, 'r', function(err, fd) {
-      if (err) return done(err);
-      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
-      var rs = slicer.createReadStream();
-      rs.on('error', function(err) {
-        assert.strictEqual(err.message, "stream destroyed");
-        slicer.on('close', done);
-      });
-      rs.destroy();
-    });
+  describe('no_proxy=example (single host)', function() {
+    var env = {};
+    env.HTTP_PROXY = 'http://proxy';
+
+    env.NO_PROXY = 'example';
+    testProxyUrl(env, '', 'http://example');
+    testProxyUrl(env, '', 'http://example:80');
+    testProxyUrl(env, '', 'http://example:0');
+    testProxyUrl(env, '', 'http://example:1337');
+    testProxyUrl(env, 'http://proxy', 'http://sub.example');
+    testProxyUrl(env, 'http://proxy', 'http://prefexample');
+    testProxyUrl(env, 'http://proxy', 'http://example.no');
+    testProxyUrl(env, 'http://proxy', 'http://a.b.example');
+    testProxyUrl(env, 'http://proxy', 'http://host/example');
   });
 
-  it("fdSlicer.read", function(done) {
-    fs.open(testBlobFile, 'r', function(err, fd) {
-      if (err) return done(err);
-      var slicer = fdSlicer.createFromFd(fd);
-      var outBuf = new Buffer(1024);
-      slicer.read(outBuf, 0, 10, 0, function(err, bytesRead, buf) {
-        assert.strictEqual(bytesRead, 10);
-        fs.close(fd, done);
-      });
-    });
+  describe('no_proxy=sub.example (subdomain)', function() {
+    var env = {};
+    env.HTTP_PROXY = 'http://proxy';
+
+    env.NO_PROXY = 'sub.example';
+    testProxyUrl(env, 'http://proxy', 'http://example');
+    testProxyUrl(env, 'http://proxy', 'http://example:80');
+    testProxyUrl(env, 'http://proxy', 'http://example:0');
+    testProxyUrl(env, 'http://proxy', 'http://example:1337');
+    testProxyUrl(env, '', 'http://sub.example');
+    testProxyUrl(env, 'http://proxy', 'http://no.sub.example');
+    testProxyUrl(env, 'http://proxy', 'http://sub-example');
+    testProxyUrl(env, 'http://proxy', 'http://example.sub');
   });
 
-  it("fdSlicer.write", function(done) {
-    fs.open(testOutBlobFile, 'w', function(err, fd) {
-      if (err) return done(err);
-      var slicer = fdSlicer.createFromFd(fd);
-      slicer.write(new Buffer("blah\n"), 0, 5, 0, function() {
-        if (err) return done(err);
-        fs.close(fd, done);
-      });
-    });
-  });
-});
+  describe('no_proxy=example:80 (host + port)', function() {
+    var env = {};
+    env.HTTP_PROXY = 'http://proxy';
 
-describe("BufferSlicer", function() {
-  it("invalid ref", function() {
-    var slicer = fdSlicer.createFromBuffer(new Buffer(16));
-    slicer.ref();
-    slicer.unref();
-    assert.throws(function() {
-      slicer.unref();
-    }, /invalid unref/);
+    env.NO_PROXY = 'example:80';
+    testProxyUrl(env, '', 'http://example');
+    testProxyUrl(env, '', 'http://example:80');
+    testProxyUrl(env, '', 'http://example:0');
+    testProxyUrl(env, 'http://proxy', 'http://example:1337');
+    testProxyUrl(env, 'http://proxy', 'http://sub.example');
+    testProxyUrl(env, 'http://proxy', 'http://prefexample');
+    testProxyUrl(env, 'http://proxy', 'http://example.no');
+    testProxyUrl(env, 'http://proxy', 'http://a.b.example');
   });
-  it("read and write", function(done) {
-    var buf = new Buffer("through the tangled thread the needle finds its way");
-    var slicer = fdSlicer.createFromBuffer(buf);
-    var outBuf = new Buffer(1024);
-    slicer.read(outBuf, 10, 11, 8, function(err) {
-      if (err) return done(err);
-      assert.strictEqual(outBuf.toString('utf8', 10, 21), "the tangled");
-      slicer.write(new Buffer("derp"), 0, 4, 7, function(err) {
-        if (err) return done(err);
-        assert.strictEqual(buf.toString('utf8', 7, 19), "derp tangled");
-        done();
-      });
-    });
+
+  describe('no_proxy=.example (host suffix)', function() {
+    var env = {};
+    env.HTTP_PROXY = 'http://proxy';
+
+    env.NO_PROXY = '.example';
+    testProxyUrl(env, 'http://proxy', 'http://example');
+    testProxyUrl(env, 'http://proxy', 'http://example:80');
+    testProxyUrl(env, 'http://proxy', 'http://example:1337');
+    testProxyUrl(env, '', 'http://sub.example');
+    testProxyUrl(env, '', 'http://sub.example:80');
+    testProxyUrl(env, '', 'http://sub.example:1337');
+    testProxyUrl(env, 'http://proxy', 'http://prefexample');
+    testProxyUrl(env, 'http://proxy', 'http://example.no');
+    testProxyUrl(env, '', 'http://a.b.example');
   });
-  it("createReadStream", function(done) {
-    var str = "I never conquered rarely came, 16 just held such better days";
-    var buf = new Buffer(str);
-    var slicer = fdSlicer.createFromBuffer(buf);
-    var inStream = slicer.createReadStream();
-    var sink = new StreamSink();
-    inStream.pipe(sink);
-    sink.on('finish', function() {
-      assert.strictEqual(sink.toString(), str);
-      inStream.destroy();
-      done();
-    });
+
+  describe('no_proxy=*', function() {
+    var env = {};
+    env.HTTP_PROXY = 'http://proxy';
+    env.NO_PROXY = '*';
+    testProxyUrl(env, '', 'http://example.com');
   });
-  it("createWriteStream exceed buffer size", function(done) {
-    var slicer = fdSlicer.createFromBuffer(new Buffer(4));
-    var outStream = slicer.createWriteStream();
-    outStream.on('error', function(err) {
-      assert.strictEqual(err.code, 'ETOOBIG');
-      done();
-    });
-    outStream.write("hi!\n");
-    outStream.write("it warked\n");
-    outStream.end();
+
+  describe('no_proxy=*.example (host suffix with *.)', function() {
+    var env = {};
+    env.HTTP_PROXY = 'http://proxy';
+
+    env.NO_PROXY = '*.example';
+    testProxyUrl(env, 'http://proxy', 'http://example');
+    testProxyUrl(env, 'http://proxy', 'http://example:80');
+    testProxyUrl(env, 'http://proxy', 'http://example:1337');
+    testProxyUrl(env, '', 'http://sub.example');
+    testProxyUrl(env, '', 'http://sub.example:80');
+    testProxyUrl(env, '', 'http://sub.example:1337');
+    testProxyUrl(env, 'http://proxy', 'http://prefexample');
+    testProxyUrl(env, 'http://proxy', 'http://example.no');
+    testProxyUrl(env, '', 'http://a.b.example');
   });
-  it("createWriteStream ok", function(done) {
-    var buf = new Buffer(1024);
-    var slicer = fdSlicer.createFromBuffer(buf);
-    var outStream = slicer.createWriteStream();
-    outStream.on('finish', function() {
-      assert.strictEqual(buf.toString('utf8', 0, "hi!\nit warked\n".length), "hi!\nit warked\n");
-      outStream.destroy();
-      done();
+
+  describe('no_proxy=*example (substring suffix)', function() {
+    var env = {};
+    env.HTTP_PROXY = 'http://proxy';
+
+    env.NO_PROXY = '*example';
+    testProxyUrl(env, '', 'http://example');
+    testProxyUrl(env, '', 'http://example:80');
+    testProxyUrl(env, '', 'http://example:1337');
+    testProxyUrl(env, '', 'http://sub.example');
+    testProxyUrl(env, '', 'http://sub.example:80');
+    testProxyUrl(env, '', 'http://sub.example:1337');
+    testProxyUrl(env, '', 'http://prefexample');
+    testProxyUrl(env, '', 'http://a.b.example');
+    testProxyUrl(env, 'http://proxy', 'http://example.no');
+    testProxyUrl(env, 'http://proxy', 'http://host/example');
+  });
+
+  describe('no_proxy=.*example (arbitrary wildcards are NOT supported)',
+      function() {
+    var env = {};
+    env.HTTP_PROXY = 'http://proxy';
+
+    env.NO_PROXY = '.*example';
+    testProxyUrl(env, 'http://proxy', 'http://example');
+    testProxyUrl(env, 'http://proxy', 'http://sub.example');
+    testProxyUrl(env, 'http://proxy', 'http://sub.example');
+    testProxyUrl(env, 'http://proxy', 'http://prefexample');
+    testProxyUrl(env, 'http://proxy', 'http://x.prefexample');
+    testProxyUrl(env, 'http://proxy', 'http://a.b.example');
+  });
+
+  describe('no_proxy=[::1],[::2]:80,10.0.0.1,10.0.0.2:80 (IP addresses)',
+      function() {
+    var env = {};
+    env.HTTP_PROXY = 'http://proxy';
+
+    env.NO_PROXY = '[::1],[::2]:80,10.0.0.1,10.0.0.2:80';
+    testProxyUrl(env, '', 'http://[::1]/');
+    testProxyUrl(env, '', 'http://[::1]:80/');
+    testProxyUrl(env, '', 'http://[::1]:1337/');
+
+    testProxyUrl(env, '', 'http://[::2]/');
+    testProxyUrl(env, '', 'http://[::2]:80/');
+    testProxyUrl(env, 'http://proxy', 'http://[::2]:1337/');
+
+    testProxyUrl(env, '', 'http://10.0.0.1/');
+    testProxyUrl(env, '', 'http://10.0.0.1:80/');
+    testProxyUrl(env, '', 'http://10.0.0.1:1337/');
+
+    testProxyUrl(env, '', 'http://10.0.0.2/');
+    testProxyUrl(env, '', 'http://10.0.0.2:80/');
+    testProxyUrl(env, 'http://proxy', 'http://10.0.0.2:1337/');
+  });
+
+  describe('no_proxy=127.0.0.1/32 (CIDR is NOT supported)', function() {
+    var env = {};
+    env.HTTP_PROXY = 'http://proxy';
+
+    env.NO_PROXY = '127.0.0.1/32';
+    testProxyUrl(env, 'http://proxy', 'http://127.0.0.1');
+    testProxyUrl(env, 'http://proxy', 'http://127.0.0.1/32');
+  });
+
+  describe('no_proxy=127.0.0.1 does NOT match localhost', function() {
+    var env = {};
+    env.HTTP_PROXY = 'http://proxy';
+
+    env.NO_PROXY = '127.0.0.1';
+    testProxyUrl(env, '', 'http://127.0.0.1');
+    // We're not performing DNS queries, so this shouldn't match.
+    testProxyUrl(env, 'http://proxy', 'http://localhost');
+  });
+
+  describe('no_proxy with protocols that have a default port', function() {
+    var env = {};
+    env.WS_PROXY = 'http://ws';
+    env.WSS_PROXY = 'http://wss';
+    env.HTTP_PROXY = 'http://http';
+    env.HTTPS_PROXY = 'http://https';
+    env.GOPHER_PROXY = 'http://gopher';
+    env.FTP_PROXY = 'http://ftp';
+    env.ALL_PROXY = 'http://all';
+
+    env.NO_PROXY = 'xxx:21,xxx:70,xxx:80,xxx:443';
+
+    testProxyUrl(env, '', 'http://xxx');
+    testProxyUrl(env, '', 'http://xxx:80');
+    testProxyUrl(env, 'http://http', 'http://xxx:1337');
+
+    testProxyUrl(env, '', 'ws://xxx');
+    testProxyUrl(env, '', 'ws://xxx:80');
+    testProxyUrl(env, 'http://ws', 'ws://xxx:1337');
+
+    testProxyUrl(env, '', 'https://xxx');
+    testProxyUrl(env, '', 'https://xxx:443');
+    testProxyUrl(env, 'http://https', 'https://xxx:1337');
+
+    testProxyUrl(env, '', 'wss://xxx');
+    testProxyUrl(env, '', 'wss://xxx:443');
+    testProxyUrl(env, 'http://wss', 'wss://xxx:1337');
+
+    testProxyUrl(env, '', 'gopher://xxx');
+    testProxyUrl(env, '', 'gopher://xxx:70');
+    testProxyUrl(env, 'http://gopher', 'gopher://xxx:1337');
+
+    testProxyUrl(env, '', 'ftp://xxx');
+    testProxyUrl(env, '', 'ftp://xxx:21');
+    testProxyUrl(env, 'http://ftp', 'ftp://xxx:1337');
+  });
+
+  describe('no_proxy should not be case-sensitive', function() {
+    var env = {};
+    env.HTTP_PROXY = 'http://proxy';
+    env.NO_PROXY = 'XXX,YYY,ZzZ';
+
+    testProxyUrl(env, '', 'http://xxx');
+    testProxyUrl(env, '', 'http://XXX');
+    testProxyUrl(env, '', 'http://yyy');
+    testProxyUrl(env, '', 'http://YYY');
+    testProxyUrl(env, '', 'http://ZzZ');
+    testProxyUrl(env, '', 'http://zZz');
+  });
+
+  describe('NPM proxy configuration', function() {
+    describe('npm_config_http_proxy should work', function() {
+      var env = {};
+      // eslint-disable-next-line camelcase
+      env.npm_config_http_proxy = 'http://http-proxy';
+
+      testProxyUrl(env, '', 'https://example');
+      testProxyUrl(env, 'http://http-proxy', 'http://example');
+
+      // eslint-disable-next-line camelcase
+      env.npm_config_http_proxy = 'http://priority';
+      testProxyUrl(env, 'http://priority', 'http://example');
     });
-    outStream.write("hi!\n");
-    outStream.write("it warked\n");
-    outStream.end();
+    // eslint-disable-next-line max-len
+    describe('npm_config_http_proxy should take precedence over HTTP_PROXY and npm_config_proxy', function() {
+      var env = {};
+      // eslint-disable-next-line camelcase
+      env.npm_config_http_proxy = 'http://http-proxy';
+      // eslint-disable-next-line camelcase
+      env.npm_config_proxy = 'http://unexpected-proxy';
+      env.HTTP_PROXY = 'http://unexpected-proxy';
+
+      testProxyUrl(env, 'http://http-proxy', 'http://example');
+    });
+    describe('npm_config_https_proxy should work', function() {
+      var env = {};
+      // eslint-disable-next-line camelcase
+      env.npm_config_http_proxy = 'http://unexpected.proxy';
+      testProxyUrl(env, '', 'https://example');
+
+      // eslint-disable-next-line camelcase
+      env.npm_config_https_proxy = 'http://https-proxy';
+      testProxyUrl(env, 'http://https-proxy', 'https://example');
+
+      // eslint-disable-next-line camelcase
+      env.npm_config_https_proxy = 'http://priority';
+      testProxyUrl(env, 'http://priority', 'https://example');
+    });
+    // eslint-disable-next-line max-len
+    describe('npm_config_https_proxy should take precedence over HTTPS_PROXY and npm_config_proxy', function() {
+      var env = {};
+      // eslint-disable-next-line camelcase
+      env.npm_config_https_proxy = 'http://https-proxy';
+      // eslint-disable-next-line camelcase
+      env.npm_config_proxy = 'http://unexpected-proxy';
+      env.HTTPS_PROXY = 'http://unexpected-proxy';
+
+      testProxyUrl(env, 'http://https-proxy', 'https://example');
+    });
+    describe('npm_config_proxy should work', function() {
+      var env = {};
+      // eslint-disable-next-line camelcase
+      env.npm_config_proxy = 'http://http-proxy';
+      testProxyUrl(env, 'http://http-proxy', 'http://example');
+      testProxyUrl(env, 'http://http-proxy', 'https://example');
+
+      // eslint-disable-next-line camelcase
+      env.npm_config_proxy = 'http://priority';
+      testProxyUrl(env, 'http://priority', 'http://example');
+      testProxyUrl(env, 'http://priority', 'https://example');
+    });
+    // eslint-disable-next-line max-len
+    describe('HTTP_PROXY and HTTPS_PROXY should take precedence over npm_config_proxy', function() {
+      var env = {};
+      env.HTTP_PROXY = 'http://http-proxy';
+      env.HTTPS_PROXY = 'http://https-proxy';
+      // eslint-disable-next-line camelcase
+      env.npm_config_proxy = 'http://unexpected-proxy';
+      testProxyUrl(env, 'http://http-proxy', 'http://example');
+      testProxyUrl(env, 'http://https-proxy', 'https://example');
+    });
+    describe('npm_config_no_proxy should work', function() {
+      var env = {};
+      env.HTTP_PROXY = 'http://proxy';
+      // eslint-disable-next-line camelcase
+      env.npm_config_no_proxy = 'example';
+
+      testProxyUrl(env, '', 'http://example');
+      testProxyUrl(env, 'http://proxy', 'http://otherwebsite');
+    });
+    // eslint-disable-next-line max-len
+    describe('npm_config_no_proxy should take precedence over NO_PROXY', function() {
+      var env = {};
+      env.HTTP_PROXY = 'http://proxy';
+      env.NO_PROXY = 'otherwebsite';
+      // eslint-disable-next-line camelcase
+      env.npm_config_no_proxy = 'example';
+
+      testProxyUrl(env, '', 'http://example');
+      testProxyUrl(env, 'http://proxy', 'http://otherwebsite');
+    });
   });
 });
