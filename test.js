@@ -1,869 +1,350 @@
-'use strict'
-
-const tape = require('tape')
-const crypto = require('crypto')
-const fs = require('fs')
-const path = require('path')
-const BufferList = require('../')
-const { Buffer } = require('buffer')
-
-const encodings =
-      ('hex utf8 utf-8 ascii binary base64' +
-          (process.browser ? '' : ' ucs2 ucs-2 utf16le utf-16le')).split(' ')
-
-require('./indexOf')
-require('./isBufferList')
-require('./convert')
-
-tape('single bytes from single buffer', function (t) {
-  const bl = new BufferList()
-
-  bl.append(Buffer.from('abcd'))
-
-  t.equal(bl.length, 4)
-  t.equal(bl.get(-1), undefined)
-  t.equal(bl.get(0), 97)
-  t.equal(bl.get(1), 98)
-  t.equal(bl.get(2), 99)
-  t.equal(bl.get(3), 100)
-  t.equal(bl.get(4), undefined)
-
-  t.end()
-})
-
-tape('single bytes from multiple buffers', function (t) {
-  const bl = new BufferList()
-
-  bl.append(Buffer.from('abcd'))
-  bl.append(Buffer.from('efg'))
-  bl.append(Buffer.from('hi'))
-  bl.append(Buffer.from('j'))
-
-  t.equal(bl.length, 10)
-
-  t.equal(bl.get(0), 97)
-  t.equal(bl.get(1), 98)
-  t.equal(bl.get(2), 99)
-  t.equal(bl.get(3), 100)
-  t.equal(bl.get(4), 101)
-  t.equal(bl.get(5), 102)
-  t.equal(bl.get(6), 103)
-  t.equal(bl.get(7), 104)
-  t.equal(bl.get(8), 105)
-  t.equal(bl.get(9), 106)
-
-  t.end()
-})
-
-tape('multi bytes from single buffer', function (t) {
-  const bl = new BufferList()
-
-  bl.append(Buffer.from('abcd'))
-
-  t.equal(bl.length, 4)
-
-  t.equal(bl.slice(0, 4).toString('ascii'), 'abcd')
-  t.equal(bl.slice(0, 3).toString('ascii'), 'abc')
-  t.equal(bl.slice(1, 4).toString('ascii'), 'bcd')
-  t.equal(bl.slice(-4, -1).toString('ascii'), 'abc')
-
-  t.end()
-})
-
-tape('multi bytes from single buffer (negative indexes)', function (t) {
-  const bl = new BufferList()
-
-  bl.append(Buffer.from('buffer'))
-
-  t.equal(bl.length, 6)
-
-  t.equal(bl.slice(-6, -1).toString('ascii'), 'buffe')
-  t.equal(bl.slice(-6, -2).toString('ascii'), 'buff')
-  t.equal(bl.slice(-5, -2).toString('ascii'), 'uff')
-
-  t.end()
-})
-
-tape('multiple bytes from multiple buffers', function (t) {
-  const bl = new BufferList()
-
-  bl.append(Buffer.from('abcd'))
-  bl.append(Buffer.from('efg'))
-  bl.append(Buffer.from('hi'))
-  bl.append(Buffer.from('j'))
-
-  t.equal(bl.length, 10)
-
-  t.equal(bl.slice(0, 10).toString('ascii'), 'abcdefghij')
-  t.equal(bl.slice(3, 10).toString('ascii'), 'defghij')
-  t.equal(bl.slice(3, 6).toString('ascii'), 'def')
-  t.equal(bl.slice(3, 8).toString('ascii'), 'defgh')
-  t.equal(bl.slice(5, 10).toString('ascii'), 'fghij')
-  t.equal(bl.slice(-7, -4).toString('ascii'), 'def')
-
-  t.end()
-})
-
-tape('multiple bytes from multiple buffer lists', function (t) {
-  const bl = new BufferList()
-
-  bl.append(new BufferList([Buffer.from('abcd'), Buffer.from('efg')]))
-  bl.append(new BufferList([Buffer.from('hi'), Buffer.from('j')]))
-
-  t.equal(bl.length, 10)
-
-  t.equal(bl.slice(0, 10).toString('ascii'), 'abcdefghij')
-
-  t.equal(bl.slice(3, 10).toString('ascii'), 'defghij')
-  t.equal(bl.slice(3, 6).toString('ascii'), 'def')
-  t.equal(bl.slice(3, 8).toString('ascii'), 'defgh')
-  t.equal(bl.slice(5, 10).toString('ascii'), 'fghij')
-
-  t.end()
-})
-
-// same data as previous test, just using nested constructors
-tape('multiple bytes from crazy nested buffer lists', function (t) {
-  const bl = new BufferList()
-
-  bl.append(new BufferList([
-    new BufferList([
-      new BufferList(Buffer.from('abc')),
-      Buffer.from('d'),
-      new BufferList(Buffer.from('efg'))
-    ]),
-    new BufferList([Buffer.from('hi')]),
-    new BufferList(Buffer.from('j'))
-  ]))
-
-  t.equal(bl.length, 10)
-
-  t.equal(bl.slice(0, 10).toString('ascii'), 'abcdefghij')
-
-  t.equal(bl.slice(3, 10).toString('ascii'), 'defghij')
-  t.equal(bl.slice(3, 6).toString('ascii'), 'def')
-  t.equal(bl.slice(3, 8).toString('ascii'), 'defgh')
-  t.equal(bl.slice(5, 10).toString('ascii'), 'fghij')
-
-  t.end()
-})
-
-tape('append accepts arrays of Buffers', function (t) {
-  const bl = new BufferList()
-
-  bl.append(Buffer.from('abc'))
-  bl.append([Buffer.from('def')])
-  bl.append([Buffer.from('ghi'), Buffer.from('jkl')])
-  bl.append([Buffer.from('mnop'), Buffer.from('qrstu'), Buffer.from('vwxyz')])
-  t.equal(bl.length, 26)
-  t.equal(bl.slice().toString('ascii'), 'abcdefghijklmnopqrstuvwxyz')
-
-  t.end()
-})
-
-tape('append accepts arrays of Uint8Arrays', function (t) {
-  const bl = new BufferList()
-
-  bl.append(new Uint8Array([97, 98, 99]))
-  bl.append([Uint8Array.from([100, 101, 102])])
-  bl.append([new Uint8Array([103, 104, 105]), new Uint8Array([106, 107, 108])])
-  bl.append([new Uint8Array([109, 110, 111, 112]), new Uint8Array([113, 114, 115, 116, 117]), new Uint8Array([118, 119, 120, 121, 122])])
-  t.equal(bl.length, 26)
-  t.equal(bl.slice().toString('ascii'), 'abcdefghijklmnopqrstuvwxyz')
-
-  t.end()
-})
-
-tape('append accepts arrays of BufferLists', function (t) {
-  const bl = new BufferList()
-
-  bl.append(Buffer.from('abc'))
-  bl.append([new BufferList('def')])
-  bl.append(new BufferList([Buffer.from('ghi'), new BufferList('jkl')]))
-  bl.append([Buffer.from('mnop'), new BufferList([Buffer.from('qrstu'), Buffer.from('vwxyz')])])
-  t.equal(bl.length, 26)
-  t.equal(bl.slice().toString('ascii'), 'abcdefghijklmnopqrstuvwxyz')
-
-  t.end()
-})
-
-tape('append chainable', function (t) {
-  const bl = new BufferList()
-
-  t.ok(bl.append(Buffer.from('abcd')) === bl)
-  t.ok(bl.append([Buffer.from('abcd')]) === bl)
-  t.ok(bl.append(new BufferList(Buffer.from('abcd'))) === bl)
-  t.ok(bl.append([new BufferList(Buffer.from('abcd'))]) === bl)
-
-  t.end()
-})
-
-tape('append chainable (test results)', function (t) {
-  const bl = new BufferList('abc')
-    .append([new BufferList('def')])
-    .append(new BufferList([Buffer.from('ghi'), new BufferList('jkl')]))
-    .append([Buffer.from('mnop'), new BufferList([Buffer.from('qrstu'), Buffer.from('vwxyz')])])
-
-  t.equal(bl.length, 26)
-  t.equal(bl.slice().toString('ascii'), 'abcdefghijklmnopqrstuvwxyz')
-
-  t.end()
-})
-
-tape('consuming from multiple buffers', function (t) {
-  const bl = new BufferList()
-
-  bl.append(Buffer.from('abcd'))
-  bl.append(Buffer.from('efg'))
-  bl.append(Buffer.from('hi'))
-  bl.append(Buffer.from('j'))
-
-  t.equal(bl.length, 10)
-
-  t.equal(bl.slice(0, 10).toString('ascii'), 'abcdefghij')
-
-  bl.consume(3)
-  t.equal(bl.length, 7)
-  t.equal(bl.slice(0, 7).toString('ascii'), 'defghij')
-
-  bl.consume(2)
-  t.equal(bl.length, 5)
-  t.equal(bl.slice(0, 5).toString('ascii'), 'fghij')
-
-  bl.consume(1)
-  t.equal(bl.length, 4)
-  t.equal(bl.slice(0, 4).toString('ascii'), 'ghij')
-
-  bl.consume(1)
-  t.equal(bl.length, 3)
-  t.equal(bl.slice(0, 3).toString('ascii'), 'hij')
-
-  bl.consume(2)
-  t.equal(bl.length, 1)
-  t.equal(bl.slice(0, 1).toString('ascii'), 'j')
-
-  t.end()
-})
-
-tape('complete consumption', function (t) {
-  const bl = new BufferList()
-
-  bl.append(Buffer.from('a'))
-  bl.append(Buffer.from('b'))
-
-  bl.consume(2)
-
-  t.equal(bl.length, 0)
-  t.equal(bl._bufs.length, 0)
-
-  t.end()
-})
-
-tape('test readUInt8 / readInt8', function (t) {
-  const buf1 = Buffer.alloc(1)
-  const buf2 = Buffer.alloc(3)
-  const buf3 = Buffer.alloc(3)
-  const bl = new BufferList()
-
-  buf1[0] = 0x1
-  buf2[1] = 0x3
-  buf2[2] = 0x4
-  buf3[0] = 0x23
-  buf3[1] = 0x42
-
-  bl.append(buf1)
-  bl.append(buf2)
-  bl.append(buf3)
-
-  t.equal(bl.readUInt8(), 0x1)
-  t.equal(bl.readUInt8(2), 0x3)
-  t.equal(bl.readInt8(2), 0x3)
-  t.equal(bl.readUInt8(3), 0x4)
-  t.equal(bl.readInt8(3), 0x4)
-  t.equal(bl.readUInt8(4), 0x23)
-  t.equal(bl.readInt8(4), 0x23)
-  t.equal(bl.readUInt8(5), 0x42)
-  t.equal(bl.readInt8(5), 0x42)
-
-  t.end()
-})
-
-tape('test readUInt16LE / readUInt16BE / readInt16LE / readInt16BE', function (t) {
-  const buf1 = Buffer.alloc(1)
-  const buf2 = Buffer.alloc(3)
-  const buf3 = Buffer.alloc(3)
-  const bl = new BufferList()
-
-  buf1[0] = 0x1
-  buf2[1] = 0x3
-  buf2[2] = 0x4
-  buf3[0] = 0x23
-  buf3[1] = 0x42
-
-  bl.append(buf1)
-  bl.append(buf2)
-  bl.append(buf3)
-
-  t.equal(bl.readUInt16BE(), 0x0100)
-  t.equal(bl.readUInt16LE(), 0x0001)
-  t.equal(bl.readUInt16BE(2), 0x0304)
-  t.equal(bl.readUInt16LE(2), 0x0403)
-  t.equal(bl.readInt16BE(2), 0x0304)
-  t.equal(bl.readInt16LE(2), 0x0403)
-  t.equal(bl.readUInt16BE(3), 0x0423)
-  t.equal(bl.readUInt16LE(3), 0x2304)
-  t.equal(bl.readInt16BE(3), 0x0423)
-  t.equal(bl.readInt16LE(3), 0x2304)
-  t.equal(bl.readUInt16BE(4), 0x2342)
-  t.equal(bl.readUInt16LE(4), 0x4223)
-  t.equal(bl.readInt16BE(4), 0x2342)
-  t.equal(bl.readInt16LE(4), 0x4223)
-
-  t.end()
-})
-
-tape('test readUInt32LE / readUInt32BE / readInt32LE / readInt32BE', function (t) {
-  const buf1 = Buffer.alloc(1)
-  const buf2 = Buffer.alloc(3)
-  const buf3 = Buffer.alloc(3)
-  const bl = new BufferList()
-
-  buf1[0] = 0x1
-  buf2[1] = 0x3
-  buf2[2] = 0x4
-  buf3[0] = 0x23
-  buf3[1] = 0x42
-
-  bl.append(buf1)
-  bl.append(buf2)
-  bl.append(buf3)
-
-  t.equal(bl.readUInt32BE(), 0x01000304)
-  t.equal(bl.readUInt32LE(), 0x04030001)
-  t.equal(bl.readUInt32BE(2), 0x03042342)
-  t.equal(bl.readUInt32LE(2), 0x42230403)
-  t.equal(bl.readInt32BE(2), 0x03042342)
-  t.equal(bl.readInt32LE(2), 0x42230403)
-
-  t.end()
-})
-
-tape('test readUIntLE / readUIntBE / readIntLE / readIntBE', function (t) {
-  const buf1 = Buffer.alloc(1)
-  const buf2 = Buffer.alloc(3)
-  const buf3 = Buffer.alloc(3)
-  const bl = new BufferList()
-
-  buf2[0] = 0x2
-  buf2[1] = 0x3
-  buf2[2] = 0x4
-  buf3[0] = 0x23
-  buf3[1] = 0x42
-  buf3[2] = 0x61
-
-  bl.append(buf1)
-  bl.append(buf2)
-  bl.append(buf3)
-
-  t.equal(bl.readUIntBE(1, 1), 0x02)
-  t.equal(bl.readUIntBE(1, 2), 0x0203)
-  t.equal(bl.readUIntBE(1, 3), 0x020304)
-  t.equal(bl.readUIntBE(1, 4), 0x02030423)
-  t.equal(bl.readUIntBE(1, 5), 0x0203042342)
-  t.equal(bl.readUIntBE(1, 6), 0x020304234261)
-  t.equal(bl.readUIntLE(1, 1), 0x02)
-  t.equal(bl.readUIntLE(1, 2), 0x0302)
-  t.equal(bl.readUIntLE(1, 3), 0x040302)
-  t.equal(bl.readUIntLE(1, 4), 0x23040302)
-  t.equal(bl.readUIntLE(1, 5), 0x4223040302)
-  t.equal(bl.readUIntLE(1, 6), 0x614223040302)
-  t.equal(bl.readIntBE(1, 1), 0x02)
-  t.equal(bl.readIntBE(1, 2), 0x0203)
-  t.equal(bl.readIntBE(1, 3), 0x020304)
-  t.equal(bl.readIntBE(1, 4), 0x02030423)
-  t.equal(bl.readIntBE(1, 5), 0x0203042342)
-  t.equal(bl.readIntBE(1, 6), 0x020304234261)
-  t.equal(bl.readIntLE(1, 1), 0x02)
-  t.equal(bl.readIntLE(1, 2), 0x0302)
-  t.equal(bl.readIntLE(1, 3), 0x040302)
-  t.equal(bl.readIntLE(1, 4), 0x23040302)
-  t.equal(bl.readIntLE(1, 5), 0x4223040302)
-  t.equal(bl.readIntLE(1, 6), 0x614223040302)
-
-  t.end()
-})
-
-tape('test readFloatLE / readFloatBE', function (t) {
-  const buf1 = Buffer.alloc(1)
-  const buf2 = Buffer.alloc(3)
-  const buf3 = Buffer.alloc(3)
-  const bl = new BufferList()
-
-  buf1[0] = 0x01
-  buf2[1] = 0x00
-  buf2[2] = 0x00
-  buf3[0] = 0x80
-  buf3[1] = 0x3f
-
-  bl.append(buf1)
-  bl.append(buf2)
-  bl.append(buf3)
-
-  const canonical = Buffer.concat([buf1, buf2, buf3])
-  t.equal(bl.readFloatLE(), canonical.readFloatLE())
-  t.equal(bl.readFloatBE(), canonical.readFloatBE())
-  t.equal(bl.readFloatLE(2), canonical.readFloatLE(2))
-  t.equal(bl.readFloatBE(2), canonical.readFloatBE(2))
-
-  t.end()
-})
-
-tape('test readDoubleLE / readDoubleBE', function (t) {
-  const buf1 = Buffer.alloc(1)
-  const buf2 = Buffer.alloc(3)
-  const buf3 = Buffer.alloc(10)
-  const bl = new BufferList()
-
-  buf1[0] = 0x01
-  buf2[1] = 0x55
-  buf2[2] = 0x55
-  buf3[0] = 0x55
-  buf3[1] = 0x55
-  buf3[2] = 0x55
-  buf3[3] = 0x55
-  buf3[4] = 0xd5
-  buf3[5] = 0x3f
-
-  bl.append(buf1)
-  bl.append(buf2)
-  bl.append(buf3)
-
-  const canonical = Buffer.concat([buf1, buf2, buf3])
-  t.equal(bl.readDoubleBE(), canonical.readDoubleBE())
-  t.equal(bl.readDoubleLE(), canonical.readDoubleLE())
-  t.equal(bl.readDoubleBE(2), canonical.readDoubleBE(2))
-  t.equal(bl.readDoubleLE(2), canonical.readDoubleLE(2))
-
-  t.end()
-})
-
-tape('test toString', function (t) {
-  const bl = new BufferList()
-
-  bl.append(Buffer.from('abcd'))
-  bl.append(Buffer.from('efg'))
-  bl.append(Buffer.from('hi'))
-  bl.append(Buffer.from('j'))
-
-  t.equal(bl.toString('ascii', 0, 10), 'abcdefghij')
-  t.equal(bl.toString('ascii', 3, 10), 'defghij')
-  t.equal(bl.toString('ascii', 3, 6), 'def')
-  t.equal(bl.toString('ascii', 3, 8), 'defgh')
-  t.equal(bl.toString('ascii', 5, 10), 'fghij')
-
-  t.end()
-})
-
-tape('test toString encoding', function (t) {
-  const bl = new BufferList()
-  const b = Buffer.from('abcdefghij\xff\x00')
-
-  bl.append(Buffer.from('abcd'))
-  bl.append(Buffer.from('efg'))
-  bl.append(Buffer.from('hi'))
-  bl.append(Buffer.from('j'))
-  bl.append(Buffer.from('\xff\x00'))
-
-  encodings.forEach(function (enc) {
-    t.equal(bl.toString(enc), b.toString(enc), enc)
-  })
-
-  t.end()
-})
-
-tape('uninitialized memory', function (t) {
-  const secret = crypto.randomBytes(256)
-  for (let i = 0; i < 1e6; i++) {
-    const clone = Buffer.from(secret)
-    const bl = new BufferList()
-    bl.append(Buffer.from('a'))
-    bl.consume(-1024)
-    const buf = bl.slice(1)
-    if (buf.indexOf(clone) !== -1) {
-      t.fail(`Match (at ${i})`)
-      break
+var fdSlicer = require('../');
+var fs = require('fs');
+var crypto = require('crypto');
+var path = require('path');
+var streamEqual = require('stream-equal');
+var assert = require('assert');
+var Pend = require('pend');
+var StreamSink = require('streamsink');
+
+var describe = global.describe;
+var it = global.it;
+var before = global.before;
+var beforeEach = global.beforeEach;
+var after = global.after;
+
+var testBlobFile = path.join(__dirname, "test-blob.bin");
+var testBlobFileSize = 20 * 1024 * 1024;
+var testOutBlobFile = path.join(__dirname, "test-blob-out.bin");
+
+describe("FdSlicer", function() {
+  before(function(done) {
+    var out = fs.createWriteStream(testBlobFile);
+    for (var i = 0; i < testBlobFileSize / 1024; i += 1) {
+      out.write(crypto.pseudoRandomBytes(1024));
     }
-  }
-  t.end()
-})
-
-!process.browser && tape('test stream', function (t) {
-  const random = crypto.randomBytes(65534)
-
-  const bl = new BufferList((err, buf) => {
-    t.ok(Buffer.isBuffer(buf))
-    t.ok(err === null)
-    t.ok(random.equals(bl.slice()))
-    t.ok(random.equals(buf.slice()))
-
-    bl.pipe(fs.createWriteStream('/tmp/bl_test_rnd_out.dat'))
-      .on('close', function () {
-        const rndhash = crypto.createHash('md5').update(random).digest('hex')
-        const md5sum = crypto.createHash('md5')
-        const s = fs.createReadStream('/tmp/bl_test_rnd_out.dat')
-
-        s.on('data', md5sum.update.bind(md5sum))
-        s.on('end', function () {
-          t.equal(rndhash, md5sum.digest('hex'), 'woohoo! correct hash!')
-          t.end()
-        })
-      })
-  })
-
-  fs.writeFileSync('/tmp/bl_test_rnd.dat', random)
-  fs.createReadStream('/tmp/bl_test_rnd.dat').pipe(bl)
-})
-
-tape('instantiation with Buffer', function (t) {
-  const buf = crypto.randomBytes(1024)
-  const buf2 = crypto.randomBytes(1024)
-  let b = BufferList(buf)
-
-  t.equal(buf.toString('hex'), b.slice().toString('hex'), 'same buffer')
-  b = BufferList([buf, buf2])
-  t.equal(b.slice().toString('hex'), Buffer.concat([buf, buf2]).toString('hex'), 'same buffer')
-
-  t.end()
-})
-
-tape('test String appendage', function (t) {
-  const bl = new BufferList()
-  const b = Buffer.from('abcdefghij\xff\x00')
-
-  bl.append('abcd')
-  bl.append('efg')
-  bl.append('hi')
-  bl.append('j')
-  bl.append('\xff\x00')
-
-  encodings.forEach(function (enc) {
-    t.equal(bl.toString(enc), b.toString(enc))
-  })
-
-  t.end()
-})
-
-tape('test Number appendage', function (t) {
-  const bl = new BufferList()
-  const b = Buffer.from('1234567890')
-
-  bl.append(1234)
-  bl.append(567)
-  bl.append(89)
-  bl.append(0)
-
-  encodings.forEach(function (enc) {
-    t.equal(bl.toString(enc), b.toString(enc))
-  })
-
-  t.end()
-})
-
-tape('write nothing, should get empty buffer', function (t) {
-  t.plan(3)
-  BufferList(function (err, data) {
-    t.notOk(err, 'no error')
-    t.ok(Buffer.isBuffer(data), 'got a buffer')
-    t.equal(0, data.length, 'got a zero-length buffer')
-    t.end()
-  }).end()
-})
-
-tape('unicode string', function (t) {
-  t.plan(2)
-
-  const inp1 = '\u2600'
-  const inp2 = '\u2603'
-  const exp = inp1 + ' and ' + inp2
-  const bl = BufferList()
-
-  bl.write(inp1)
-  bl.write(' and ')
-  bl.write(inp2)
-  t.equal(exp, bl.toString())
-  t.equal(Buffer.from(exp).toString('hex'), bl.toString('hex'))
-})
-
-tape('should emit finish', function (t) {
-  const source = BufferList()
-  const dest = BufferList()
-
-  source.write('hello')
-  source.pipe(dest)
-
-  dest.on('finish', function () {
-    t.equal(dest.toString('utf8'), 'hello')
-    t.end()
-  })
-})
-
-tape('basic copy', function (t) {
-  const buf = crypto.randomBytes(1024)
-  const buf2 = Buffer.alloc(1024)
-  const b = BufferList(buf)
-
-  b.copy(buf2)
-  t.equal(b.slice().toString('hex'), buf2.toString('hex'), 'same buffer')
-
-  t.end()
-})
-
-tape('copy after many appends', function (t) {
-  const buf = crypto.randomBytes(512)
-  const buf2 = Buffer.alloc(1024)
-  const b = BufferList(buf)
-
-  b.append(buf)
-  b.copy(buf2)
-  t.equal(b.slice().toString('hex'), buf2.toString('hex'), 'same buffer')
-
-  t.end()
-})
-
-tape('copy at a precise position', function (t) {
-  const buf = crypto.randomBytes(1004)
-  const buf2 = Buffer.alloc(1024)
-  const b = BufferList(buf)
-
-  b.copy(buf2, 20)
-  t.equal(b.slice().toString('hex'), buf2.slice(20).toString('hex'), 'same buffer')
-
-  t.end()
-})
-
-tape('copy starting from a precise location', function (t) {
-  const buf = crypto.randomBytes(10)
-  const buf2 = Buffer.alloc(5)
-  const b = BufferList(buf)
-
-  b.copy(buf2, 0, 5)
-  t.equal(b.slice(5).toString('hex'), buf2.toString('hex'), 'same buffer')
-
-  t.end()
-})
-
-tape('copy in an interval', function (t) {
-  const rnd = crypto.randomBytes(10)
-  const b = BufferList(rnd) // put the random bytes there
-  const actual = Buffer.alloc(3)
-  const expected = Buffer.alloc(3)
-
-  rnd.copy(expected, 0, 5, 8)
-  b.copy(actual, 0, 5, 8)
-
-  t.equal(actual.toString('hex'), expected.toString('hex'), 'same buffer')
-
-  t.end()
-})
-
-tape('copy an interval between two buffers', function (t) {
-  const buf = crypto.randomBytes(10)
-  const buf2 = Buffer.alloc(10)
-  const b = BufferList(buf)
-
-  b.append(buf)
-  b.copy(buf2, 0, 5, 15)
-
-  t.equal(b.slice(5, 15).toString('hex'), buf2.toString('hex'), 'same buffer')
-
-  t.end()
-})
-
-tape('shallow slice across buffer boundaries', function (t) {
-  const bl = new BufferList(['First', 'Second', 'Third'])
-
-  t.equal(bl.shallowSlice(3, 13).toString(), 'stSecondTh')
-
-  t.end()
-})
-
-tape('shallow slice within single buffer', function (t) {
-  t.plan(2)
-
-  const bl = new BufferList(['First', 'Second', 'Third'])
-
-  t.equal(bl.shallowSlice(5, 10).toString(), 'Secon')
-  t.equal(bl.shallowSlice(7, 10).toString(), 'con')
-
-  t.end()
-})
-
-tape('shallow slice single buffer', function (t) {
-  t.plan(3)
-
-  const bl = new BufferList(['First', 'Second', 'Third'])
-
-  t.equal(bl.shallowSlice(0, 5).toString(), 'First')
-  t.equal(bl.shallowSlice(5, 11).toString(), 'Second')
-  t.equal(bl.shallowSlice(11, 16).toString(), 'Third')
-})
-
-tape('shallow slice with negative or omitted indices', function (t) {
-  t.plan(4)
-
-  const bl = new BufferList(['First', 'Second', 'Third'])
-
-  t.equal(bl.shallowSlice().toString(), 'FirstSecondThird')
-  t.equal(bl.shallowSlice(5).toString(), 'SecondThird')
-  t.equal(bl.shallowSlice(5, -3).toString(), 'SecondTh')
-  t.equal(bl.shallowSlice(-8).toString(), 'ondThird')
-})
-
-tape('shallow slice does not make a copy', function (t) {
-  t.plan(1)
-
-  const buffers = [Buffer.from('First'), Buffer.from('Second'), Buffer.from('Third')]
-  const bl = (new BufferList(buffers)).shallowSlice(5, -3)
-
-  buffers[1].fill('h')
-  buffers[2].fill('h')
-
-  t.equal(bl.toString(), 'hhhhhhhh')
-})
-
-tape('shallow slice with 0 length', function (t) {
-  t.plan(1)
-
-  const buffers = [Buffer.from('First'), Buffer.from('Second'), Buffer.from('Third')]
-  const bl = (new BufferList(buffers)).shallowSlice(0, 0)
-
-  t.equal(bl.length, 0)
-})
-
-tape('shallow slice with 0 length from middle', function (t) {
-  t.plan(1)
-
-  const buffers = [Buffer.from('First'), Buffer.from('Second'), Buffer.from('Third')]
-  const bl = (new BufferList(buffers)).shallowSlice(10, 10)
-
-  t.equal(bl.length, 0)
-})
-
-tape('duplicate', function (t) {
-  t.plan(2)
-
-  const bl = new BufferList('abcdefghij\xff\x00')
-  const dup = bl.duplicate()
-
-  t.equal(bl.prototype, dup.prototype)
-  t.equal(bl.toString('hex'), dup.toString('hex'))
-})
-
-tape('destroy no pipe', function (t) {
-  t.plan(2)
-
-  const bl = new BufferList('alsdkfja;lsdkfja;lsdk')
-
-  bl.destroy()
-
-  t.equal(bl._bufs.length, 0)
-  t.equal(bl.length, 0)
-})
-
-tape('destroy with error', function (t) {
-  t.plan(3)
-
-  const bl = new BufferList('alsdkfja;lsdkfja;lsdk')
-  const err = new Error('kaboom')
-
-  bl.destroy(err)
-  bl.on('error', function (_err) {
-    t.equal(_err, err)
-  })
-
-  t.equal(bl._bufs.length, 0)
-  t.equal(bl.length, 0)
-})
-
-!process.browser && tape('destroy with pipe before read end', function (t) {
-  t.plan(2)
-
-  const bl = new BufferList()
-  fs.createReadStream(path.join(__dirname, '/test.js'))
-    .pipe(bl)
-
-  bl.destroy()
-
-  t.equal(bl._bufs.length, 0)
-  t.equal(bl.length, 0)
-})
-
-!process.browser && tape('destroy with pipe before read end with race', function (t) {
-  t.plan(2)
-
-  const bl = new BufferList()
-
-  fs.createReadStream(path.join(__dirname, '/test.js'))
-    .pipe(bl)
-
-  setTimeout(function () {
-    bl.destroy()
-    setTimeout(function () {
-      t.equal(bl._bufs.length, 0)
-      t.equal(bl.length, 0)
-    }, 500)
-  }, 500)
-})
-
-!process.browser && tape('destroy with pipe after read end', function (t) {
-  t.plan(2)
-
-  const bl = new BufferList()
-
-  fs.createReadStream(path.join(__dirname, '/test.js'))
-    .on('end', onEnd)
-    .pipe(bl)
-
-  function onEnd () {
-    bl.destroy()
-
-    t.equal(bl._bufs.length, 0)
-    t.equal(bl.length, 0)
-  }
-})
-
-!process.browser && tape('destroy with pipe while writing to a destination', function (t) {
-  t.plan(4)
-
-  const bl = new BufferList()
-  const ds = new BufferList()
-
-  fs.createReadStream(path.join(__dirname, '/test.js'))
-    .on('end', onEnd)
-    .pipe(bl)
-
-  function onEnd () {
-    bl.pipe(ds)
-
-    setTimeout(function () {
-      bl.destroy()
-
-      t.equals(bl._bufs.length, 0)
-      t.equals(bl.length, 0)
-
-      ds.destroy()
-
-      t.equals(bl._bufs.length, 0)
-      t.equals(bl.length, 0)
-    }, 100)
-  }
-})
-
-!process.browser && tape('handle error', function (t) {
-  t.plan(2)
-
-  fs.createReadStream('/does/not/exist').pipe(BufferList(function (err, data) {
-    t.ok(err instanceof Error, 'has error')
-    t.notOk(data, 'no data')
-  }))
-})
+    out.end();
+    out.on('close', done);
+  });
+  beforeEach(function() {
+    try {
+      fs.unlinkSync(testOutBlobFile);
+    } catch (err) {
+    }
+  });
+  after(function() {
+    try {
+      fs.unlinkSync(testBlobFile);
+      fs.unlinkSync(testOutBlobFile);
+    } catch (err) {
+    }
+  });
+  it("reads a 20MB file (autoClose on)", function(done) {
+    fs.open(testBlobFile, 'r', function(err, fd) {
+      if (err) return done(err);
+      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
+      var actualStream = slicer.createReadStream();
+      var expectedStream = fs.createReadStream(testBlobFile);
+
+      var pend = new Pend();
+      pend.go(function(cb) {
+        slicer.on('close', cb);
+      });
+      pend.go(function(cb) {
+        streamEqual(expectedStream, actualStream, function(err, equal) {
+          if (err) return done(err);
+          assert.ok(equal);
+          cb();
+        });
+      });
+      pend.wait(done);
+    });
+  });
+  it("reads 4 chunks simultaneously", function(done) {
+    fs.open(testBlobFile, 'r', function(err, fd) {
+      if (err) return done(err);
+      var slicer = fdSlicer.createFromFd(fd);
+      var actualPart1 = slicer.createReadStream({start: testBlobFileSize * 0/4, end: testBlobFileSize * 1/4});
+      var actualPart2 = slicer.createReadStream({start: testBlobFileSize * 1/4, end: testBlobFileSize * 2/4});
+      var actualPart3 = slicer.createReadStream({start: testBlobFileSize * 2/4, end: testBlobFileSize * 3/4});
+      var actualPart4 = slicer.createReadStream({start: testBlobFileSize * 3/4, end: testBlobFileSize * 4/4});
+      var expectedPart1 = slicer.createReadStream({start: testBlobFileSize * 0/4, end: testBlobFileSize * 1/4});
+      var expectedPart2 = slicer.createReadStream({start: testBlobFileSize * 1/4, end: testBlobFileSize * 2/4});
+      var expectedPart3 = slicer.createReadStream({start: testBlobFileSize * 2/4, end: testBlobFileSize * 3/4});
+      var expectedPart4 = slicer.createReadStream({start: testBlobFileSize * 3/4, end: testBlobFileSize * 4/4});
+      var pend = new Pend();
+      pend.go(function(cb) {
+        streamEqual(expectedPart1, actualPart1, function(err, equal) {
+          assert.ok(equal);
+          cb(err);
+        });
+      });
+      pend.go(function(cb) {
+        streamEqual(expectedPart2, actualPart2, function(err, equal) {
+          assert.ok(equal);
+          cb(err);
+        });
+      });
+      pend.go(function(cb) {
+        streamEqual(expectedPart3, actualPart3, function(err, equal) {
+          assert.ok(equal);
+          cb(err);
+        });
+      });
+      pend.go(function(cb) {
+        streamEqual(expectedPart4, actualPart4, function(err, equal) {
+          assert.ok(equal);
+          cb(err);
+        });
+      });
+      pend.wait(function(err) {
+        if (err) return done(err);
+        fs.close(fd, done);
+      });
+    });
+  });
+
+  it("writes a 20MB file (autoClose on)", function(done) {
+    fs.open(testOutBlobFile, 'w', function(err, fd) {
+      if (err) return done(err);
+      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
+      var actualStream = slicer.createWriteStream();
+      var inStream = fs.createReadStream(testBlobFile);
+
+      slicer.on('close', function() {
+        var expected = fs.createReadStream(testBlobFile);
+        var actual = fs.createReadStream(testOutBlobFile);
+
+        streamEqual(expected, actual, function(err, equal) {
+          if (err) return done(err);
+          assert.ok(equal);
+          done();
+        });
+      });
+      inStream.pipe(actualStream);
+    });
+  });
+
+  it("writes 4 chunks simultaneously", function(done) {
+    fs.open(testOutBlobFile, 'w', function(err, fd) {
+      if (err) return done(err);
+      var slicer = fdSlicer.createFromFd(fd);
+      var actualPart1 = slicer.createWriteStream({start: testBlobFileSize * 0/4});
+      var actualPart2 = slicer.createWriteStream({start: testBlobFileSize * 1/4});
+      var actualPart3 = slicer.createWriteStream({start: testBlobFileSize * 2/4});
+      var actualPart4 = slicer.createWriteStream({start: testBlobFileSize * 3/4});
+      var in1 = fs.createReadStream(testBlobFile, {start: testBlobFileSize * 0/4, end: testBlobFileSize * 1/4});
+      var in2 = fs.createReadStream(testBlobFile, {start: testBlobFileSize * 1/4, end: testBlobFileSize * 2/4});
+      var in3 = fs.createReadStream(testBlobFile, {start: testBlobFileSize * 2/4, end: testBlobFileSize * 3/4});
+      var in4 = fs.createReadStream(testBlobFile, {start: testBlobFileSize * 3/4, end: testBlobFileSize * 4/4});
+      var pend = new Pend();
+      pend.go(function(cb) {
+        actualPart1.on('finish', cb);
+      });
+      pend.go(function(cb) {
+        actualPart2.on('finish', cb);
+      });
+      pend.go(function(cb) {
+        actualPart3.on('finish', cb);
+      });
+      pend.go(function(cb) {
+        actualPart4.on('finish', cb);
+      });
+      in1.pipe(actualPart1);
+      in2.pipe(actualPart2);
+      in3.pipe(actualPart3);
+      in4.pipe(actualPart4);
+      pend.wait(function() {
+        fs.close(fd, function(err) {
+          if (err) return done(err);
+          var expected = fs.createReadStream(testBlobFile);
+          var actual = fs.createReadStream(testOutBlobFile);
+          streamEqual(expected, actual, function(err, equal) {
+            if (err) return done(err);
+            assert.ok(equal);
+            done();
+          });
+        });
+      });
+    });
+  });
+
+  it("throws on invalid ref", function(done) {
+    fs.open(testOutBlobFile, 'w', function(err, fd) {
+      if (err) return done(err);
+      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
+      assert.throws(function() {
+        slicer.unref();
+      }, /invalid unref/);
+      fs.close(fd, done);
+    });
+  });
+
+  it("write stream emits error when max size exceeded", function(done) {
+    fs.open(testOutBlobFile, 'w', function(err, fd) {
+      if (err) return done(err);
+      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
+      var ws = slicer.createWriteStream({start: 0, end: 1000});
+      ws.on('error', function(err) {
+        assert.strictEqual(err.code, 'ETOOBIG');
+        slicer.on('close', done);
+      });
+      ws.end(new Buffer(1001));
+    });
+  });
+
+  it("write stream does not emit error when max size not exceeded", function(done) {
+    fs.open(testOutBlobFile, 'w', function(err, fd) {
+      if (err) return done(err);
+      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
+      var ws = slicer.createWriteStream({end: 1000});
+      slicer.on('close', done);
+      ws.end(new Buffer(1000));
+    });
+  });
+
+  it("write stream start and end work together", function(done) {
+    fs.open(testOutBlobFile, 'w', function(err, fd) {
+      if (err) return done(err);
+      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
+      var ws = slicer.createWriteStream({start: 1, end: 1000});
+      ws.on('error', function(err) {
+        assert.strictEqual(err.code, 'ETOOBIG');
+        slicer.on('close', done);
+      });
+      ws.end(new Buffer(1000));
+    });
+  });
+
+  it("write stream emits progress events", function(done) {
+    fs.open(testOutBlobFile, 'w', function(err, fd) {
+      if (err) return done(err);
+      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
+      var ws = slicer.createWriteStream();
+      var progressEventCount = 0;
+      var prevBytesWritten = 0;
+      ws.on('progress', function() {
+        progressEventCount += 1;
+        assert.ok(ws.bytesWritten > prevBytesWritten);
+        prevBytesWritten = ws.bytesWritten;
+      });
+      slicer.on('close', function() {
+        assert.ok(progressEventCount > 5);
+        done();
+      });
+      for (var i = 0; i < 10; i += 1) {
+        ws.write(new Buffer(16 * 1024 * 2));
+      }
+      ws.end();
+    });
+  });
+
+  it("write stream unrefs when destroyed", function(done) {
+    fs.open(testOutBlobFile, 'w', function(err, fd) {
+      if (err) return done(err);
+      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
+      var ws = slicer.createWriteStream();
+      slicer.on('close', done);
+      ws.write(new Buffer(1000));
+      ws.destroy();
+    });
+  });
+
+  it("read stream unrefs when destroyed", function(done) {
+    fs.open(testBlobFile, 'r', function(err, fd) {
+      if (err) return done(err);
+      var slicer = fdSlicer.createFromFd(fd, {autoClose: true});
+      var rs = slicer.createReadStream();
+      rs.on('error', function(err) {
+        assert.strictEqual(err.message, "stream destroyed");
+        slicer.on('close', done);
+      });
+      rs.destroy();
+    });
+  });
+
+  it("fdSlicer.read", function(done) {
+    fs.open(testBlobFile, 'r', function(err, fd) {
+      if (err) return done(err);
+      var slicer = fdSlicer.createFromFd(fd);
+      var outBuf = new Buffer(1024);
+      slicer.read(outBuf, 0, 10, 0, function(err, bytesRead, buf) {
+        assert.strictEqual(bytesRead, 10);
+        fs.close(fd, done);
+      });
+    });
+  });
+
+  it("fdSlicer.write", function(done) {
+    fs.open(testOutBlobFile, 'w', function(err, fd) {
+      if (err) return done(err);
+      var slicer = fdSlicer.createFromFd(fd);
+      slicer.write(new Buffer("blah\n"), 0, 5, 0, function() {
+        if (err) return done(err);
+        fs.close(fd, done);
+      });
+    });
+  });
+});
+
+describe("BufferSlicer", function() {
+  it("invalid ref", function() {
+    var slicer = fdSlicer.createFromBuffer(new Buffer(16));
+    slicer.ref();
+    slicer.unref();
+    assert.throws(function() {
+      slicer.unref();
+    }, /invalid unref/);
+  });
+  it("read and write", function(done) {
+    var buf = new Buffer("through the tangled thread the needle finds its way");
+    var slicer = fdSlicer.createFromBuffer(buf);
+    var outBuf = new Buffer(1024);
+    slicer.read(outBuf, 10, 11, 8, function(err) {
+      if (err) return done(err);
+      assert.strictEqual(outBuf.toString('utf8', 10, 21), "the tangled");
+      slicer.write(new Buffer("derp"), 0, 4, 7, function(err) {
+        if (err) return done(err);
+        assert.strictEqual(buf.toString('utf8', 7, 19), "derp tangled");
+        done();
+      });
+    });
+  });
+  it("createReadStream", function(done) {
+    var str = "I never conquered rarely came, 16 just held such better days";
+    var buf = new Buffer(str);
+    var slicer = fdSlicer.createFromBuffer(buf);
+    var inStream = slicer.createReadStream();
+    var sink = new StreamSink();
+    inStream.pipe(sink);
+    sink.on('finish', function() {
+      assert.strictEqual(sink.toString(), str);
+      inStream.destroy();
+      done();
+    });
+  });
+  it("createWriteStream exceed buffer size", function(done) {
+    var slicer = fdSlicer.createFromBuffer(new Buffer(4));
+    var outStream = slicer.createWriteStream();
+    outStream.on('error', function(err) {
+      assert.strictEqual(err.code, 'ETOOBIG');
+      done();
+    });
+    outStream.write("hi!\n");
+    outStream.write("it warked\n");
+    outStream.end();
+  });
+  it("createWriteStream ok", function(done) {
+    var buf = new Buffer(1024);
+    var slicer = fdSlicer.createFromBuffer(buf);
+    var outStream = slicer.createWriteStream();
+    outStream.on('finish', function() {
+      assert.strictEqual(buf.toString('utf8', 0, "hi!\nit warked\n".length), "hi!\nit warked\n");
+      outStream.destroy();
+      done();
+    });
+    outStream.write("hi!\n");
+    outStream.write("it warked\n");
+    outStream.end();
+  });
+});

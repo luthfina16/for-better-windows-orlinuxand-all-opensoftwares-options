@@ -1,17 +1,33 @@
 {
-  "name": "devtools-protocol",
-  "version": "0.0.981744",
-  "description": "The Chrome DevTools Protocol JSON",
-  "repository": "https://github.com/ChromeDevTools/devtools-protocol",
-  "author": "The Chromium Authors",
-  "license": "BSD-3-Clause",
-  "bugs": {
-    "url": "https://github.com/ChromeDevTools/devtools-protocol/issues"
+  "name": "once",
+  "version": "1.4.0",
+  "description": "Run a function exactly one time",
+  "main": "once.js",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {
+    "wrappy": "1"
+  },
+  "devDependencies": {
+    "tap": "^7.0.1"
+  },
+  "scripts": {
+    "test": "tap test/*.js"
   },
   "files": [
-    "json",
-    "pdl",
-    "types"
+    "once.js"
   ],
-  "types": "types/protocol.d.ts"
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/isaacs/once"
+  },
+  "keywords": [
+    "once",
+    "function",
+    "one",
+    "single"
+  ],
+  "author": "Isaac Z. Schlueter <i@izs.me> (http://blog.izs.me/)",
+  "license": "ISC"
 }
